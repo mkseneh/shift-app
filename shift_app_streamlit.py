@@ -257,35 +257,19 @@ def build_output(date_text: str, person: str) -> str:
 st.title("Shift Cover Calculator")
 
 today = date.today()
-start_date = today if datetime.combine(today, datetime.min.time()) >= MIN_DATE else MIN_DATE.date()
+min_date_only = MIN_DATE.date()
+default_date = today if today >= min_date_only else min_date_only
 
 st.subheader("Select date")
 
-col1, col2, col3 = st.columns(3)
+selected_date = st.date_input(
+    "Select date",
+    value=default_date,
+    min_value=min_date_only,
+    format="DD/MM/YYYY",
+)
 
-with col1:
-    selected_day = st.selectbox("Day", list(range(1, 32)), index=start_date.day - 1)
-
-with col2:
-    month_names = [
-        "January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December"
-    ]
-    selected_month_name = st.selectbox("Month", month_names, index=start_date.month - 1)
-    selected_month = month_names.index(selected_month_name) + 1
-
-with col3:
-    year_options = list(range(2020, 2036))
-    year_index = year_options.index(start_date.year) if start_date.year in year_options else 0
-    selected_year = st.selectbox("Year", year_options, index=year_index)
-
-# Safe date build
-try:
-    selected_date_obj = date(selected_year, selected_month, selected_day)
-    date_text = selected_date_obj.strftime("%d-%m-%Y")
-except ValueError:
-    st.error("That date is not valid. Please choose a real calendar date.")
-    st.stop()
+date_text = selected_date.strftime("%d-%m-%Y")
 
 # Default person = Mo
 default_staff_index = all_staff.index("Mo") if "Mo" in all_staff else 0
