@@ -99,7 +99,7 @@ def get_next_date(date_text):
 # =========================
 # STREAMLIT UI
 # =========================
-st.title("Shift Cover Calculator")
+st.title("Senez Shift Cover Calculator")
 
 selected_date = st.date_input("Select date")
 date_text = selected_date.strftime("%d-%m-%Y")
