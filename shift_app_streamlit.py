@@ -18,6 +18,11 @@ all_staff = []
 for members in groups.values():
     all_staff.extend(members)
 
+person_to_group = {}
+for group_name, members in groups.items():
+    for member in members:
+        person_to_group[member] = group_name
+
 # =========================
 # 8-day repeating cycle
 # =========================
@@ -45,6 +50,9 @@ group_cycle_start = {
 # Fixed region only
 REGION_LABEL = "England and Wales"
 REGION_KEY = "england-and-wales"
+
+DAY_SHIFT_TIME = "07:00-19:00"
+NIGHT_SHIFT_TIME = "19:00-07:00 next day"
 
 MIN_DATE = datetime.strptime("01-06-2020", "%d-%m-%Y")
 BANK_HOLIDAY_URL = "https://www.gov.uk/bank-holidays.json"
@@ -138,7 +146,7 @@ def get_bank_holiday_text(date_text: str) -> str:
     iso_date = to_iso_date(date_text)
 
     if bank_holiday_error:
-        return f"UK Bank Holiday: Unable to load ({bank_holiday_error})"
+        return f"Unable to load ({bank_holiday_error})"
 
     region_events = bank_holiday_data.get(REGION_KEY, {})
     holiday = region_events.get(iso_date)
@@ -147,10 +155,10 @@ def get_bank_holiday_text(date_text: str) -> str:
         title = holiday.get("title", "Bank Holiday")
         notes = holiday.get("notes", "").strip()
         if notes:
-            return f"UK Bank Holiday ({REGION_LABEL}): {title} - {notes}"
-        return f"UK Bank Holiday ({REGION_LABEL}): {title}"
+            return f"{title} - {notes}"
+        return title
 
-    return f"UK Bank Holiday ({REGION_LABEL}): None"
+    return "None"
 
 
 def get_date_range_for_group(group_name: str, date_text: str):
@@ -176,16 +184,23 @@ def get_date_range_for_group(group_name: str, date_text: str):
     return fmt_date(start_date), fmt_date(end_date), current_state
 
 
-def build_output(date_text: str, person: str) -> str:
-    day_name = get_day_name(date_text)
-    d = parse_date(date_text)
+def get_selected_staff_status_with_range(person: str, date_text: str):
+    group_name = person_to_group[person]
+    start_date, end_date, state = get_date_range_for_group(group_name, date_text)
 
-    if d < MIN_DATE:
-        return "Date is before 01-06-2020"
+    if state == "Day Shift":
+        label = f"Working Day Shift ({DAY_SHIFT_TIME})"
+    elif state == "Night Shift":
+        label = f"Working Night Shift ({NIGHT_SHIFT_TIME})"
+    else:
+        label = "Time Off"
 
+    return label, start_date, end_date
+
+
+def build_cover_info(person: str, date_text: str):
     day_staff = get_day_staff(date_text)
     night_staff = get_night_staff(date_text)
-    off_staff = get_off_staff(date_text)
 
     prev_date = get_previous_date(date_text)
     next_date = get_next_date(date_text)
@@ -193,39 +208,8 @@ def build_output(date_text: str, person: str) -> str:
     prev_night_staff = get_night_staff(prev_date)
     next_day_staff = get_day_staff(next_date)
 
-    holiday_line = get_bank_holiday_text(date_text)
-
-    day_lines = []
-    night_lines = []
-    off_lines = []
-
-    for group_name, members in groups.items():
-        start, end, state = get_date_range_for_group(group_name, date_text)
-        names = ", ".join(members)
-        line = f"{names} ({start} to {end})"
-
-        if state == "Day Shift":
-            day_lines.append(line)
-        elif state == "Night Shift":
-            night_lines.append(line)
-        else:
-            off_lines.append(line)
-
-    top_block = (
-        f"Date: {date_text} ({day_name})\n"
-        f"{holiday_line}\n\n"
-        f"Day Shift (07:00-19:00): {', '.join(day_staff) if day_staff else 'None'}\n"
-        f"  " + ("\n  ".join(day_lines) if day_lines else "None") + "\n\n"
-        f"Night Shift (19:00-07:00 next day): {', '.join(night_staff) if night_staff else 'None'}\n"
-        f"  " + ("\n  ".join(night_lines) if night_lines else "None") + "\n\n"
-        f"Time Off: {', '.join(off_staff) if off_staff else 'None'}\n"
-        f"  " + ("\n  ".join(off_lines) if off_lines else "None") + "\n\n"
-    )
-
     if person in day_staff:
-        shift_type = "Day Shift"
         valid_covers = []
-
         for candidate in all_staff:
             if candidate == person:
                 continue
@@ -237,25 +221,14 @@ def build_output(date_text: str, person: str) -> str:
                 continue
             valid_covers.append(candidate)
 
-        if valid_covers:
-            person_block = (
-                f"Selected Staff: {person}\n"
-                f"Status: Working {shift_type}\n"
-                f"Leave Approval: YES\n"
-                f"Possible Cover: {', '.join(valid_covers)}"
-            )
-        else:
-            person_block = (
-                f"Selected Staff: {person}\n"
-                f"Status: Working {shift_type}\n"
-                f"Leave Approval: NO\n"
-                f"Possible Cover: None"
-            )
+        return {
+            "status_type": "day",
+            "leave_approval": "YES" if valid_covers else "NO",
+            "possible_cover": valid_covers,
+        }
 
-    elif person in night_staff:
-        shift_type = "Night Shift"
+    if person in night_staff:
         valid_covers = []
-
         for candidate in all_staff:
             if candidate == person:
                 continue
@@ -267,30 +240,17 @@ def build_output(date_text: str, person: str) -> str:
                 continue
             valid_covers.append(candidate)
 
-        if valid_covers:
-            person_block = (
-                f"Selected Staff: {person}\n"
-                f"Status: Working {shift_type}\n"
-                f"Leave Approval: YES\n"
-                f"Possible Cover: {', '.join(valid_covers)}"
-            )
-        else:
-            person_block = (
-                f"Selected Staff: {person}\n"
-                f"Status: Working {shift_type}\n"
-                f"Leave Approval: NO\n"
-                f"Possible Cover: None"
-            )
+        return {
+            "status_type": "night",
+            "leave_approval": "YES" if valid_covers else "NO",
+            "possible_cover": valid_covers,
+        }
 
-    else:
-        person_block = (
-            f"Selected Staff: {person}\n"
-            f"Status: Time Off\n"
-            f"Leave Approval: Not needed\n"
-            f"Reason: {person} is already on Time Off"
-        )
-
-    return top_block + person_block
+    return {
+        "status_type": "off",
+        "leave_approval": "Not needed",
+        "possible_cover": [],
+    }
 
 
 # =========================
@@ -302,8 +262,6 @@ today = date.today()
 min_date_only = MIN_DATE.date()
 default_date = today if today >= min_date_only else min_date_only
 
-st.subheader("Select date")
-
 selected_date = st.date_input(
     "Select date",
     value=default_date,
@@ -312,11 +270,44 @@ selected_date = st.date_input(
 )
 
 date_text = selected_date.strftime("%d-%m-%Y")
+day_name = get_day_name(date_text)
 
 default_staff_index = all_staff.index("Mo") if "Mo" in all_staff else 0
 person = st.selectbox("Select staff", all_staff, index=default_staff_index)
 
-output = build_output(date_text, person)
+selected_datetime = parse_date(date_text)
+if selected_datetime < MIN_DATE:
+    st.error("Date is before 01-06-2020")
+    st.stop()
+
+day_staff = get_day_staff(date_text)
+night_staff = get_night_staff(date_text)
+off_staff = get_off_staff(date_text)
+holiday_text = get_bank_holiday_text(date_text)
+
+selected_status, selected_from, selected_to = get_selected_staff_status_with_range(person, date_text)
+cover_info = build_cover_info(person, date_text)
+
+st.markdown("### Summary")
+st.markdown(f"**Date:** {date_text} ({day_name})")
+st.markdown(f"**UK Bank Holiday ({REGION_LABEL}):** {holiday_text}")
 
 st.divider()
-st.text(output)
+
+st.markdown("### Shift Cover")
+st.markdown(f"**Day Shift ({DAY_SHIFT_TIME}):** {', '.join(day_staff) if day_staff else 'None'}")
+st.markdown(f"**Night Shift ({NIGHT_SHIFT_TIME}):** {', '.join(night_staff) if night_staff else 'None'}")
+st.markdown(f"**Time Off:** {', '.join(off_staff) if off_staff else 'None'}")
+
+st.divider()
+
+st.markdown("### Selected Staff")
+st.markdown(f"**Name:** {person}")
+st.markdown(f"**Status:** {selected_status} ({selected_from} to {selected_to})")
+st.markdown(f"**Leave Approval:** {cover_info['leave_approval']}")
+
+if cover_info["status_type"] == "off":
+    st.markdown(f"**Reason:** {person} is already on Time Off ({selected_from} to {selected_to})")
+else:
+    possible_cover_text = ", ".join(cover_info["possible_cover"]) if cover_info["possible_cover"] else "None"
+    st.markdown(f"**Possible Cover:** {possible_cover_text}")
