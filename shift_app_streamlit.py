@@ -153,6 +153,29 @@ def get_bank_holiday_text(date_text: str) -> str:
     return f"UK Bank Holiday ({REGION_LABEL}): None"
 
 
+def get_date_range_for_group(group_name: str, date_text: str):
+    current_state = get_group_state(group_name, date_text)
+    current_date = parse_date(date_text)
+
+    start_date = current_date
+    while True:
+        prev_date = start_date - timedelta(days=1)
+        prev_text = fmt_date(prev_date)
+        if get_group_state(group_name, prev_text) != current_state:
+            break
+        start_date = prev_date
+
+    end_date = current_date
+    while True:
+        next_date = end_date + timedelta(days=1)
+        next_text = fmt_date(next_date)
+        if get_group_state(group_name, next_text) != current_state:
+            break
+        end_date = next_date
+
+    return fmt_date(start_date), fmt_date(end_date), current_state
+
+
 def build_output(date_text: str, person: str) -> str:
     day_name = get_day_name(date_text)
     d = parse_date(date_text)
@@ -172,12 +195,31 @@ def build_output(date_text: str, person: str) -> str:
 
     holiday_line = get_bank_holiday_text(date_text)
 
+    day_lines = []
+    night_lines = []
+    off_lines = []
+
+    for group_name, members in groups.items():
+        start, end, state = get_date_range_for_group(group_name, date_text)
+        names = ", ".join(members)
+        line = f"{names} ({start} to {end})"
+
+        if state == "Day Shift":
+            day_lines.append(line)
+        elif state == "Night Shift":
+            night_lines.append(line)
+        else:
+            off_lines.append(line)
+
     top_block = (
         f"Date: {date_text} ({day_name})\n"
         f"{holiday_line}\n\n"
-        f"Day Shift: {', '.join(day_staff) if day_staff else 'None'}\n"
-        f"Night Shift: {', '.join(night_staff) if night_staff else 'None'}\n"
-        f"Time Off: {', '.join(off_staff) if off_staff else 'None'}\n\n"
+        f"Day Shift (07:00-19:00): {', '.join(day_staff) if day_staff else 'None'}\n"
+        f"  " + ("\n  ".join(day_lines) if day_lines else "None") + "\n\n"
+        f"Night Shift (19:00-07:00 next day): {', '.join(night_staff) if night_staff else 'None'}\n"
+        f"  " + ("\n  ".join(night_lines) if night_lines else "None") + "\n\n"
+        f"Time Off: {', '.join(off_staff) if off_staff else 'None'}\n"
+        f"  " + ("\n  ".join(off_lines) if off_lines else "None") + "\n\n"
     )
 
     if person in day_staff:
@@ -271,7 +313,6 @@ selected_date = st.date_input(
 
 date_text = selected_date.strftime("%d-%m-%Y")
 
-# Default person = Mo
 default_staff_index = all_staff.index("Mo") if "Mo" in all_staff else 0
 person = st.selectbox("Select staff", all_staff, index=default_staff_index)
 
