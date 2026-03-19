@@ -8,10 +8,10 @@ st.set_page_config(page_title="Shift Cover Calculator", layout="centered")
 # Fixed staff groups
 # =========================
 groups = {
-    "Group 1": ["Karl", "Lax G"],
-    "Group 2": ["Tony", "Lax T"],
-    "Group 3": ["Frank", "Prakash"],
-    "Group 4": ["Mo", "Michal"],
+    "Group 1": ["KC", "LG"],
+    "Group 2": ["AB", "LT"],
+    "Group 3": ["FB", "PA"],
+    "Group 4": ["Mo", "MS"],
 }
 
 all_staff = []
