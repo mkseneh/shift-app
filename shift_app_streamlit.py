@@ -295,9 +295,31 @@ st.markdown(f"**UK Bank Holiday ({REGION_LABEL}):** {holiday_text}")
 st.divider()
 
 st.markdown("### Shift Cover")
-st.markdown(f"**Day Shift ({DAY_SHIFT_TIME}):** {', '.join(day_staff) if day_staff else 'None'}")
-st.markdown(f"**Night Shift ({NIGHT_SHIFT_TIME}):** {', '.join(night_staff) if night_staff else 'None'}")
-st.markdown(f"**Time Off:** {', '.join(off_staff) if off_staff else 'None'}")
+
+day_lines = []
+night_lines = []
+off_lines = []
+
+for group_name, members in groups.items():
+    start, end, state = get_date_range_for_group(group_name, date_text)
+    names = ", ".join(members)
+    line = f"{names} ({start} to {end})"
+
+    if state == "Day Shift":
+        day_lines.append(line)
+    elif state == "Night Shift":
+        night_lines.append(line)
+    else:
+        off_lines.append(line)
+
+st.markdown(f"**Day Shift ({DAY_SHIFT_TIME}):**")
+st.markdown("\n".join([f"- {x}" for x in day_lines]) if day_lines else "None")
+
+st.markdown(f"**Night Shift ({NIGHT_SHIFT_TIME}):**")
+st.markdown("\n".join([f"- {x}" for x in night_lines]) if night_lines else "None")
+
+st.markdown("**Time Off:**")
+st.markdown("\n".join([f"- {x}" for x in off_lines]) if off_lines else "None")
 
 st.divider()
 
