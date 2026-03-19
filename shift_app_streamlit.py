@@ -253,6 +253,39 @@ def build_cover_info(person: str, date_text: str):
     }
 
 
+def is_person_working_on_date(person: str, date_text: str) -> bool:
+    return person in get_day_staff(date_text) or person in get_night_staff(date_text)
+
+
+def count_weekend_days_from_year_start(person: str, date_text: str):
+    selected_dt = parse_date(date_text)
+    year_start = datetime(selected_dt.year, 1, 1)
+
+    saturday_count = 0
+    sunday_count = 0
+
+    current_dt = year_start
+    while current_dt <= selected_dt:
+        current_text = fmt_date(current_dt)
+
+        if is_person_working_on_date(person, current_text):
+            weekday = current_dt.weekday()  # Monday=0 ... Sunday=6
+            if weekday == 5:
+                saturday_count += 1
+            elif weekday == 6:
+                sunday_count += 1
+
+        current_dt += timedelta(days=1)
+
+    return {
+        "year_start": fmt_date(year_start),
+        "selected_date": fmt_date(selected_dt),
+        "saturdays": saturday_count,
+        "sundays": sunday_count,
+        "total": saturday_count + sunday_count,
+    }
+
+
 # =========================
 # UI
 # =========================
@@ -287,6 +320,7 @@ holiday_text = get_bank_holiday_text(date_text)
 
 selected_status, selected_from, selected_to = get_selected_staff_status_with_range(person, date_text)
 cover_info = build_cover_info(person, date_text)
+weekend_counts = count_weekend_days_from_year_start(person, date_text)
 
 st.markdown("### Summary")
 st.markdown(f"**Date:** {date_text} ({day_name})")
@@ -294,32 +328,56 @@ st.markdown(f"**UK Bank Holiday ({REGION_LABEL}):** {holiday_text}")
 
 st.divider()
 
-st.markdown("### Shift Cover")
-
-day_lines = []
-night_lines = []
-off_lines = []
+shift_rows = []
 
 for group_name, members in groups.items():
     start, end, state = get_date_range_for_group(group_name, date_text)
     names = ", ".join(members)
-    line = f"{names} ({start} to {end})"
 
-    if state == "Day Shift":
-        day_lines.append(line)
-    elif state == "Night Shift":
-        night_lines.append(line)
-    else:
-        off_lines.append(line)
+    shift_rows.append({
+        "names": names,
+        "start": start,
+        "end": end,
+        "state": state,
+    })
+
+day_rows = sorted(
+    [r for r in shift_rows if r["state"] == "Day Shift"],
+    key=lambda r: (parse_date(r["start"]), parse_date(r["end"]), r["names"])
+)
+
+night_rows = sorted(
+    [r for r in shift_rows if r["state"] == "Night Shift"],
+    key=lambda r: (parse_date(r["start"]), parse_date(r["end"]), r["names"])
+)
+
+off_rows = sorted(
+    [r for r in shift_rows if r["state"] == "Time Off"],
+    key=lambda r: (parse_date(r["start"]), parse_date(r["end"]), r["names"])
+)
+
+st.markdown("### Shift Cover")
 
 st.markdown(f"**Day Shift ({DAY_SHIFT_TIME}):**")
-st.markdown("\n".join([f"- {x}" for x in day_lines]) if day_lines else "None")
+if day_rows:
+    for row in day_rows:
+        st.markdown(f"- {row['names']} ({row['start']} to {row['end']})")
+else:
+    st.markdown("None")
 
 st.markdown(f"**Night Shift ({NIGHT_SHIFT_TIME}):**")
-st.markdown("\n".join([f"- {x}" for x in night_lines]) if night_lines else "None")
+if night_rows:
+    for row in night_rows:
+        st.markdown(f"- {row['names']} ({row['start']} to {row['end']})")
+else:
+    st.markdown("None")
 
 st.markdown("**Time Off:**")
-st.markdown("\n".join([f"- {x}" for x in off_lines]) if off_lines else "None")
+if off_rows:
+    for row in off_rows:
+        st.markdown(f"- {row['names']} ({row['start']} to {row['end']})")
+else:
+    st.markdown("None")
 
 st.divider()
 
@@ -333,3 +391,12 @@ if cover_info["status_type"] == "off":
 else:
     possible_cover_text = ", ".join(cover_info["possible_cover"]) if cover_info["possible_cover"] else "None"
     st.markdown(f"**Possible Cover:** {possible_cover_text}")
+
+st.divider()
+
+st.markdown("### Weekend Count")
+st.markdown(f"**From:** {weekend_counts['year_start']}")
+st.markdown(f"**To:** {weekend_counts['selected_date']}")
+st.markdown(f"**Saturdays worked:** {weekend_counts['saturdays']}")
+st.markdown(f"**Sundays worked:** {weekend_counts['sundays']}")
+st.markdown(f"**Total weekend days worked:** {weekend_counts['total']}")
