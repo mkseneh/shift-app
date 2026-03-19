@@ -172,13 +172,13 @@ def build_output(date_text: str, person: str) -> str:
 
     holiday_line = get_bank_holiday_text(date_text)
 
-top_block = (
-    f"Date: {date_text} ({day_name})\n"
-    f"{holiday_line}\n\n"
-    f"Day Shift (07:00-19:00): {', '.join(day_staff) if day_staff else 'None'}\n"
-    f"Night Shift (19:00-07:00 next day): {', '.join(night_staff) if night_staff else 'None'}\n"
-    f"Time Off: {', '.join(off_staff) if off_staff else 'None'}\n\n"
-)
+    top_block = (
+        f"Date: {date_text} ({day_name})\n"
+        f"{holiday_line}\n\n"
+        f"Day Shift: {', '.join(day_staff) if day_staff else 'None'}\n"
+        f"Night Shift: {', '.join(night_staff) if night_staff else 'None'}\n"
+        f"Time Off: {', '.join(off_staff) if off_staff else 'None'}\n\n"
+    )
 
     if person in day_staff:
         shift_type = "Day Shift"
